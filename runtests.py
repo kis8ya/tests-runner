@@ -69,7 +69,7 @@ def setup_loggers(teamcity, verbose):
     runner_logger.addHandler(info_handler)
     runner_logger.addHandler(error_handler)
 
-    conf_file = 'lib/test_helper/logger.ini'
+    conf_file = '../lib/test_helper/logger.ini'
     parser = ConfigParser.ConfigParser()
     parser.read([conf_file])
 
@@ -86,8 +86,8 @@ class TestError(Exception):
 class TestRunner(object):
     def __init__(self, args):
         repo_dir = os.path.dirname(os.path.abspath(__file__))
-        self.tests_dir = os.path.join(repo_dir, "tests")
-        self.ansible_dir = os.path.join(repo_dir, "ansible")
+        self.project_dir = os.path.abspath(os.path.join(repo_dir, ".."))
+        self.ansible_dir = os.path.join(self.project_dir, "ansible")
         self.configs_dir = args.configs_dir
         if args.testsuite_params:
             with open(args.testsuite_params, 'r') as f:
@@ -235,7 +235,8 @@ class TestRunner(object):
         return True
 
     def run_pytest_test(self, test_name):
-        rsyncdir_opts = "--rsyncdir tests/ --rsyncdir lib/test_helper"
+        rsyncdir_opts = "--rsyncdir {0}/tests/ --rsyncdir {0}/lib/test_helper"
+        rsyncdir_opts = rsyncdir_opts.format(self.project_dir)
 
         succeded = True
         clients_count = self.tests[test_name]["test_env_cfg"]["clients"]["count"]
@@ -244,10 +245,11 @@ class TestRunner(object):
                 opts = '--teamcity'
             else:
                 opts = ''
-            opts += ' -d --tx ssh="{0} -l root -q" {1} tests/{2}/'
+            opts += ' -d --tx ssh="{0} -l root -q" {1} {2}/tests/{3}/'
 
             opts = opts.format(client_name,
                                rsyncdir_opts,
+                               self.project_dir,
                                self.tests[test_name]["running"]["target"])
             self.logger.info(opts)
 
