@@ -30,8 +30,8 @@ def run_playbook(playbook, inventory=None):
                                                                                    p.returncode))
 
 def generate_inventory(inventory_path, clients_count, servers_per_group,
-                       groups, instances_names):
-    inventory_host_record_template = '{0} ansible_ssh_user=root'
+                       groups, instances_names, ssh_user):
+    inventory_host_record_template = '{host} ansible_ssh_user={user}'
     servers_group_template = 'servers-{0}'
 
     groups_count = len(servers_per_group)
@@ -42,7 +42,7 @@ def generate_inventory(inventory_path, clients_count, servers_per_group,
     # Add clients section
     inventory.add_section(groups["clients"])
     for name in instances_names["clients"][:clients_count]:
-        host_record = inventory_host_record_template.format(name)
+        host_record = inventory_host_record_template.format(host=name, user=ssh_user)
         inventory.set(groups["clients"], host_record)
     # Add alias for clients' group (to use it in playbooks)
     clients_general_group = _as_group_of_groups('clients')
@@ -56,7 +56,8 @@ def generate_inventory(inventory_path, clients_count, servers_per_group,
         group_name = servers_group_template.format(group + 1)
         inventory.add_section(group_name)
         for _ in xrange(servers_per_group[group]):
-            host_record = inventory_host_record_template.format(next(server_name))
+            host_record = inventory_host_record_template.format(host=next(server_name),
+                                                                user=ssh_user)
             inventory.set(group_name, host_record)
 
     # Group all servers' groups in associated group
