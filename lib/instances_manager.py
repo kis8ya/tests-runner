@@ -2,13 +2,20 @@ import openstack
 import copy
 import itertools
 
-session = openstack.Session()
+_flavors = None
 
-flavors = {None: 0}
-for f in session.get_flavors_list():
-    flavors[f['name']] = f['ram']
+def _get_flavors():
+    """Returns dictionary: **flavor_name**: **flavor_ram**."""
+    global _flavors
+    if _flavors is None:
+        _flavors = {None: 0}
+        session = openstack.Session()
+        for flavor in session.get_flavors_list():
+            _flavors[flavor['name']] = flavor['ram']
+    return _flavors
 
-def _get_flavor_name(flavor_id):
+def _get_flavor_name(flavor_id, session):
+    """Returns flavor name by id."""
     flavor_list = session.get_flavors_list()
     for flavor in flavor_list:
         if flavor['id'] == flavor_id:
@@ -16,7 +23,7 @@ def _get_flavor_name(flavor_id):
     else:
         return None
 
-def _satisfied(instance_name, flavor_name):
+def _satisfied(instance_name, flavor_name, session):
     #TODO: temporary fix for rebuild bug
     # rebuild isn't working; we are forcing to recreate instances instead of rebuilding them
     return False
@@ -24,15 +31,18 @@ def _satisfied(instance_name, flavor_name):
     if instance_info is None:
         return False
     else:
-        current_flavor_name = _get_flavor_name(instance_info['flavor']['id'])
+        current_flavor_name = _get_flavor_name(instance_info['flavor']['id'], session)
+        flavors = _get_flavors()
         return flavors[current_flavor_name] >= flavors[flavor_name]
 
 def create(instances_cfg):
+    session = openstack.Session()
+
     instances_names = {}
     for instance_type, instance_cfg in instances_cfg.items():
         instances_names[instance_type] = openstack.utils.get_instances_names_from_conf(instance_cfg)
         for instance_name in instances_names[instance_type]:
-            if _satisfied(instance_name, instance_cfg["flavor_name"]):
+            if _satisfied(instance_name, instance_cfg["flavor_name"], session):
                 session.rebuild_instance(instance_name)
             else:
                 icfg = copy.deepcopy(instance_cfg)
@@ -54,14 +64,14 @@ def create(instances_cfg):
     else:
         return None
 
-def delete(instances_cfg):
+def delete(instances_cfg, session):
     session.delete_instances(instances_cfg)
 
-def _flavors_order(f):
+def _flavors_order(flavor):
     """ Ordering function for instance flavor
     (ordering by RAM)
     """
-    return flavors[f]
+    return _get_flavors()[flavor]
 
 def get_instances_cfg(instances_params, base_names):
     """ Prepares instances config for future usage
