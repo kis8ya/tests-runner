@@ -89,6 +89,7 @@ class TestRunner(object):
         self.project_dir = os.path.abspath(os.path.join(repo_dir, ".."))
         self.ansible_dir = os.path.join(self.project_dir, "ansible")
         self.configs_dir = args.configs_dir
+        self.user = args.user
         if args.testsuite_params:
             with open(args.testsuite_params, 'r') as f:
                 self.testsuite_params = json.load(f)
@@ -172,7 +173,8 @@ class TestRunner(object):
                                                clients_count=env["clients"]["count"],
                                                servers_per_group=env["servers"]["count_per_group"],
                                                groups=groups,
-                                               instances_names=self.inventory)
+                                               instances_names=self.inventory,
+                                               ssh_user=self.user)
 
             params = cfg["params"]
             if name in self.testsuite_params:
@@ -190,7 +192,8 @@ class TestRunner(object):
                                            clients_count=len(self.inventory['clients']),
                                            servers_per_group=[len(self.inventory['servers'])],
                                            groups=groups,
-                                           instances_names=self.inventory)
+                                           instances_names=self.inventory,
+                                           ssh_user=self.user)
 
         playbook = self.abspath(base_setup_playbook)
         ansible_manager.run_playbook(playbook, inventory_path)
@@ -245,12 +248,13 @@ class TestRunner(object):
                 opts = '--teamcity'
             else:
                 opts = ''
-            opts += ' -d --tx ssh="{0} -l root -q" {1} {2}/tests/{3}/'
+            opts += ' -d --tx ssh="{host} -l {user} -q" {rsyncdir_opts} {prj_dir}/tests/{target}/'
 
-            opts = opts.format(client_name,
-                               rsyncdir_opts,
-                               self.project_dir,
-                               self.tests[test_name]["running"]["target"])
+            opts = opts.format(host=client_name,
+                               user=self.user,
+                               rsyncdir_opts=rsyncdir_opts,
+                               prj_dir=self.project_dir,
+                               target=self.tests[test_name]["running"]["target"])
             self.logger.info(opts)
 
             exitcode = pytest.main(opts)
@@ -323,6 +327,8 @@ if __name__ == "__main__":
                             help="increase verbosity")
         parser.add_argument('--teamcity', action="store_true", dest="teamcity",
                             help="will format output with Teamcity messages.")
+        parser.add_argument('--user', default="root",
+                            help="a user which will be used to connect via ssh to test machines.")
 
         group = parser.add_mutually_exclusive_group(required=True)
         group.add_argument('--inventory', help="path to inventory file.")
