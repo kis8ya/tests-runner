@@ -282,10 +282,32 @@ class TestRunner(object):
             exc_info = traceback.format_exc()
             raise TestError("Teardown for test {} raised exception: {}".format(test_name, exc_info))
 
+    def _get_ordered_test_names(self):
+        """Returns ordered tests names."""
+        ordered_test_names = self.tests.keys()
+        left = 0
+        right = len(ordered_test_names)
+        while left < right:
+            test_name = ordered_test_names[left]
+            if self.tests[test_name].get("order"):
+                if self.tests[test_name]["order"] == "tryfirst":
+                    # move test to the beginning
+                    ordered_test_names.insert(0, ordered_test_names.pop(left))
+                    left += 1
+                elif self.tests[test_name]["order"] == "trylast":
+                    # move test to the end
+                    ordered_test_names.append(ordered_test_names.pop(left))
+                    right -= 1
+                else:
+                    raise RuntimeError("Wrong order was specified: {}"
+                                       .format(self.tests[test_name]["order"]))
+            else:
+                left += 1
+        return ordered_test_names
 
     def run_tests(self):
         testsfailed = 0
-        for test_name in self.tests:
+        for test_name in self._get_ordered_test_names():
             with teamcity_messages.block("TEST: {0}".format(test_name)):
                 self.setup(test_name)
                     
