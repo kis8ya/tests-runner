@@ -300,7 +300,7 @@ class TestRunner(object):
 
     def run_tests(self):
         testsfailed = 0
-        for test_name in self._get_ordered_test_names():
+        for test_name in self.tests:
             with teamcity_messages.block("TEST: {0}".format(test_name)):
                 self.setup(test_name)
                     
