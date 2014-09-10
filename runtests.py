@@ -13,6 +13,8 @@ import logging
 import traceback
 import copy
 
+from collections import OrderedDict
+
 import ansible_manager
 import instances_manager
 import teamcity_messages
@@ -99,7 +101,7 @@ class TestRunner(object):
         self.logger = logging.getLogger('runner_logger')
         self.teamcity = args.teamcity
 
-        self.tests = self.collect_tests(args.tags)
+        self.tests = self._get_ordered_tests(args.tags)
         self.inventory = self.get_inventory(args.inventory, args.instance_name)
         self.tests = self.expand_tests_configs()
 
@@ -107,7 +109,7 @@ class TestRunner(object):
             self.prepare_ansible_test_files()
             self.install_elliptics_packages()
 
-    def collect_tests(self, tags):
+    def _collect_tests(self, tags):
         """Collects tests' configs with given tags."""
         tests = {}
         for root, _, filenames in os.walk(self.configs_dir):
@@ -120,6 +122,20 @@ class TestRunner(object):
                     test_name = os.path.splitext(filename)[0][5:]
                     tests[test_name] = cfg
         return tests
+
+    def _get_ordered_tests(self, tags):
+        """Returns ordered tests with given tags."""
+
+        def tests_with_order(tests, order):
+            return [(test_name, params) for test_name, params in tests.items()
+                    if params.get("order") == order]
+
+        tests = self._collect_tests(tags)
+        ordered_tests = OrderedDict()
+        ordered_tests.update(tests_with_order(tests, "tryfirst"))
+        ordered_tests.update(tests_with_order(tests, None))
+        ordered_tests.update(tests_with_order(tests, "trylast"))
+        return ordered_tests
 
     def create_cloud_instances(self, instance_name):
         """Creates cloud instances and returns a dictionary with their names."""
@@ -281,7 +297,6 @@ class TestRunner(object):
         except ansible_manager.AnsiblePlaybookError:
             exc_info = traceback.format_exc()
             raise TestError("Teardown for test {} raised exception: {}".format(test_name, exc_info))
-
 
     def run_tests(self):
         testsfailed = 0
