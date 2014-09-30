@@ -25,6 +25,9 @@ EXIT_OK = 0
 EXIT_TESTSFAILED = 1
 EXIT_INTERNALERROR = 3
 
+# Artifacts path
+ARTIFACTS_PATH = "/tmp/test-artifacts"
+
 # util functions
 def qa_storage_upload(file_path):
     storage = "http://qa-storage.yandex-team.ru"
@@ -325,55 +328,53 @@ class TestRunner(object):
         path = self.abspath("group_vars/{0}.json".format(name))
         return path
 
-if __name__ == "__main__":
+def main(args):
     exitcode = EXIT_OK
 
     try:
-        parser = argparse.ArgumentParser()
-
-        parser.add_argument('--configs-dir', dest="configs_dir", required=True,
-                            help="directory with tests' configs")
-        parser.add_argument('--testsuite-params', dest="testsuite_params", default=None,
-                            help="path to file with parameters which will override default "
-                            "parameters for specified test suite.")
-        parser.add_argument('--tag', action="append", dest="tags",
-                            help="specifying which tests to run.")
-        parser.add_argument('--verbose', '-v', action="store_true", dest="verbose",
-                            help="increase verbosity")
-        parser.add_argument('--teamcity', action="store_true", dest="teamcity",
-                            help="will format output with Teamcity messages.")
-        parser.add_argument('--user', default="root",
-                            help="a user which will be used to connect via ssh to test machines.")
-
-        group = parser.add_mutually_exclusive_group(required=True)
-        group.add_argument('--inventory', help="path to inventory file.")
-        group.add_argument('--instance-name', dest="instance_name", default="elliptics",
-                           help="base name for the instances.")
-
-
-        args = parser.parse_args()
-
         setup_loggers(args.teamcity, args.verbose)
 
         testrunner = TestRunner(args)
         if not testrunner.run_tests():
             exitcode = EXIT_TESTSFAILED
 
-        # collect logs
-        with teamcity_messages.block("LOGS: Collecting logs"):
-            ansible_manager.run_playbook(testrunner.abspath("collect-logs"),
-                                         testrunner.get_inventory_path("test-env-prepare"))
-
-        if args.teamcity:
-            with teamcity_messages.block("LOGS: Links"):
-                path = "/tmp/logs-archive"
-                for f in os.listdir(path):
-                    print(qa_storage_upload(os.path.join(path, f)))
     except TestError:
         traceback.print_exc(file=sys.stderr)
         exitcode = EXIT_TESTSFAILED
     except:
         traceback.print_exc(file=sys.stderr)
         exitcode = EXIT_INTERNALERROR
+    finally:
+        if args.teamcity:
+            # Upload artifacts to file storage
+            with teamcity_messages.block("LOGS: Links"):
+                for artifacts in os.listdir(ARTIFACTS_PATH):
+                    print(qa_storage_upload(os.path.join(ARTIFACTS_PATH, artifacts)))
 
-    sys.exit(exitcode)
+    return exitcode
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--configs-dir', dest="configs_dir", required=True,
+                        help="directory with tests' configs")
+    parser.add_argument('--testsuite-params', dest="testsuite_params", default=None,
+                        help="path to file with parameters which will override default "
+                        "parameters for specified test suite.")
+    parser.add_argument('--tag', action="append", dest="tags",
+                        help="specifying which tests to run.")
+    parser.add_argument('--verbose', '-v', action="store_true", dest="verbose",
+                        help="increase verbosity")
+    parser.add_argument('--teamcity', action="store_true", dest="teamcity",
+                        help="will format output with Teamcity messages.")
+    parser.add_argument('--user', default="root",
+                        help="a user which will be used to connect via ssh to test machines.")
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--inventory', help="path to inventory file.")
+    group.add_argument('--instance-name', dest="instance_name", default="elliptics",
+                       help="base name for the instances.")
+
+    args = parser.parse_args()
+
+    sys.exit(main(args))
