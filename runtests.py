@@ -235,8 +235,10 @@ class TestRunner(object):
         try:
             # Do prerequisite steps for a test
             ansible_manager.run_playbook(playbook, inventory)
-        except ansible_manager.AnsiblePlaybookError:
+        except ansible_manager.AnsiblePlaybookError as exc:
             exc_info = traceback.format_exc()
+            teamcity_messages.report_test("test_" + test_name + "_setup", failed=True,
+                                          message=exc.message, details=exc_info)
             raise TestError("Setup for test {} raised exception: {}".format(test_name, exc_info))
 
         # Check if it's a pytest test
@@ -297,8 +299,10 @@ class TestRunner(object):
         inventory = self.get_inventory_path(test_name)
         try:
             ansible_manager.run_playbook(playbook, inventory)
-        except ansible_manager.AnsiblePlaybookError:
+        except ansible_manager.AnsiblePlaybookError as exc:
             exc_info = traceback.format_exc()
+            teamcity_messages.report_test("test_" + test_name + "_teardown", failed=True,
+                                          message=exc.message, details=exc_info)
             raise TestError("Teardown for test {} raised exception: {}".format(test_name, exc_info))
 
     def run_tests(self):
