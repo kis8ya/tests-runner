@@ -53,3 +53,36 @@ class block(object):
 
     def __exit__(self, type, value, traceback):
         self.close_block()
+
+
+def _escape(text):
+    """Escapes special TeamCity characters."""
+    # Escape escape character
+    result = text.replace('|', "||")
+    characters = {"'": "|'", "\n": "|n", "\r": "|r", "[": "|[", "]": "|]"}
+    for char, escaped_char in characters.items():
+        result = result.replace(char, escaped_char)
+    return result
+                                
+
+def report_test(name, failed=False, message=None, details=None):
+    """Prints service messages for TeamCity to report test result."""
+    # Filter paramerts which will not be passed to TeamCity service messages
+    # and escape all special TeamCity characters
+    parameters = {k: _escape(v) for k, v in locals().items()
+                  if k != 'failed' and v}
+
+    logger = logging.getLogger('teamcity_logger')
+
+    logger.info("##teamcity[testStarted name='{}']".format(name))
+
+    if failed:
+        test_failed_msg = "##teamcity[testFailed"
+        # Add parameters to TeamCity service message
+        for var, value in parameters.items():
+            test_failed_msg += " {}='{}'".format(var, value)
+        test_failed_msg += "]"
+
+        logger.info(test_failed_msg)
+
+    logger.info("##teamcity[testFinished name='{}']".format(name))
