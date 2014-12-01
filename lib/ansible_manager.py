@@ -14,20 +14,22 @@ def set_vars(vars_path, params):
     with open(vars_path, 'w') as f:
         json.dump(params, f)
 
-def run_playbook(playbook, inventory=None):
-    tc_block = "ANSIBLE: {0}({1})".format(os.path.basename(playbook),
-                                          os.path.basename(inventory))
+def run_playbook(playbook, inventory, extra_vars={}):
+    tc_block = "ANSIBLE: {}({})".format(os.path.basename(playbook), os.path.basename(inventory))
     with teamcity_messages.block(tc_block):
-        cmd = "ansible-playbook -v -i {0} {1}.yml".format(inventory, playbook)
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+        extra_vars_qjson = json.dumps(extra_vars)
+        cmd = "ansible-playbook -v --extra-vars='{}' --inventory-file {} {}.yml"
+        cmd = cmd.format(extra_vars_qjson, inventory, playbook)
 
-        for line in iter(p.stdout.readline, ''):
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+
+        for line in iter(process.stdout.readline, ''):
             sys.stdout.write(line)
 
-        p.wait()
-        if p.returncode:
-            raise AnsiblePlaybookError("Playbook {} failed (exit code: {})".format(playbook,
-                                                                                   p.returncode))
+        process.wait()
+        if process.returncode:
+            error_msg = "Playbook {} failed (exit code: {})".format(playbook, process.returncode)
+            raise AnsiblePlaybookError(error_msg)
 
 def generate_inventory(inventory_path, clients_count, servers_per_group,
                        groups, instances_names, ssh_user):
