@@ -17,11 +17,9 @@ def set_vars(vars_path, params):
 def run_playbook(playbook, inventory, extra_vars={}):
     tc_block = "ANSIBLE: {}({})".format(os.path.basename(playbook), os.path.basename(inventory))
     with teamcity_messages.block(tc_block):
-        extra_vars_str = ''
-        for param, value in extra_vars.items():
-            extra_vars_str += ' {}="{}"'.format(param, value)
+        extra_vars_qjson = json.dumps(extra_vars)
         cmd = "ansible-playbook -v --extra-vars='{}' --inventory-file {} {}.yml"
-        cmd = cmd.format(extra_vars_str, inventory, playbook)
+        cmd = cmd.format(extra_vars_qjson, inventory, playbook)
 
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
 

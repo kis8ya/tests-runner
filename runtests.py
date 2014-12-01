@@ -89,6 +89,15 @@ class TestError(Exception):
     pass
 
 class TestRunner(object):
+    test_info = """
+==================== Test Info ====================
+Description: {0}
+Environment:
+	clients: {1}
+	servers per group: {2}
+==================== Test Info ====================
+"""
+
     def __init__(self, args):
         repo_dir = os.path.dirname(os.path.abspath(__file__))
         self.project_dir = os.path.abspath(os.path.join(repo_dir, ".."))
@@ -230,12 +239,12 @@ class TestRunner(object):
         with open("pytest.ini", "w") as config_file:
             pytest_config.write(config_file)
 
-    def setup(self, test_name, env_cfg, run):
+    def setup(self, test_name, env_cfg, run, extra_vars):
         playbook = self.abspath(env_cfg["setup_playbook"])
         inventory = self.get_inventory_path(test_name)
         try:
             # Do prerequisite steps for a test
-            ansible_manager.run_playbook(playbook, inventory, extra_vars=run["params"])
+            ansible_manager.run_playbook(playbook, inventory, extra_vars=extra_vars)
         except ansible_manager.AnsiblePlaybookError as exc:
             exc_info = traceback.format_exc()
             teamcity_messages.report_test("test_" + test_name + "_setup", failed=True,
@@ -246,11 +255,11 @@ class TestRunner(object):
         if run["type"] == "pytest":
             self.generate_pytest_cfg(run["addopts"])
 
-    def run_playbook_test(self, test_name, run):
+    def run_playbook_test(self, test_name, run, extra_vars):
         playbook = self.abspath(run["playbook"])
         inventory = self.get_inventory_path(test_name)
         try:
-            ansible_manager.run_playbook(playbook, inventory, extra_vars=run["params"])
+            ansible_manager.run_playbook(playbook, inventory, extra_vars=extra_vars)
         except ansible_manager.AnsiblePlaybookError as exc:
             self.logger.error(exc.message)
             return False
@@ -282,21 +291,21 @@ class TestRunner(object):
 
         return succeded
 
-    def run(self, test_name, run, env_cfg):
+    def run(self, test_name, run, env_cfg, extra_vars):
         if run["type"] == "ansible":
-            return self.run_playbook_test(test_name, run)
+            return self.run_playbook_test(test_name, run, extra_vars)
         elif run["type"] == "pytest":
             return self.run_pytest_test(test_name, run, env_cfg)
         else:
             self.logger.info("Can't determine running method for {0} test.\n".format(test_name))
             return False
 
-    def teardown(self, test_name, run, env_cfg):
+    def teardown(self, test_name, run, env_cfg, extra_vars):
         """Does clean-up steps after a test."""
         playbook = self.abspath(env_cfg["teardown_playbook"])
         inventory = self.get_inventory_path(test_name)
         try:
-            ansible_manager.run_playbook(playbook, inventory, extra_vars=run["params"])
+            ansible_manager.run_playbook(playbook, inventory, extra_vars=extra_vars)
         except ansible_manager.AnsiblePlaybookError as exc:
             exc_info = traceback.format_exc()
             teamcity_messages.report_test("test_" + test_name + "_teardown", failed=True,
@@ -306,19 +315,24 @@ class TestRunner(object):
     def run_tests(self):
         testsfailed = 0
         for test_name, cfg in self.tests.items():
-            with teamcity_messages.block("TEST: {0}".format(test_name)):
-                for run in cfg["runs"]:
-                    self.setup(test_name, cfg["test_env_cfg"], run)
-
-                    cfg_info = "Test environment:\n\tclients: {0}\n\tservers per group: {1}"
-                    cfg_info = cfg_info.format(cfg["test_env_cfg"]["clients"]["count"],
-                                               cfg["test_env_cfg"]["servers"]["count_per_group"])
-                    self.logger.info(cfg_info)
+            for run in cfg["runs"]:
+                with teamcity_messages.block("TEST: {}".format(run["test_name"])):
+                    env_cfg = cfg["test_env_cfg"]
+                    test_info = self.test_info.format(run["description"],
+                                                      env_cfg["clients"]["count"],
+                                                      env_cfg["servers"]["count_per_group"])
+                    self.logger.info(test_info)
                     
-                    if not self.run(test_name, run, cfg["test_env_cfg"]):
+                    extra_vars = copy.deepcopy(run["params"])
+                    # Expand extra ansible variables with special fields
+                    extra_vars.update({"test_name": run["test_name"]})
+                    
+                    self.setup(test_name, cfg["test_env_cfg"], run, extra_vars)
+
+                    if not self.run(test_name, run, cfg["test_env_cfg"], extra_vars):
                         testsfailed += 1
 
-                    self.teardown(test_name, run, cfg["test_env_cfg"])
+                    self.teardown(test_name, run, cfg["test_env_cfg"], extra_vars)
 
         if testsfailed:
             return False
