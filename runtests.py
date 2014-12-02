@@ -90,12 +90,12 @@ class TestError(Exception):
 
 class TestRunner(object):
     test_info = """
-==================== Test Info ====================
-Description: {0}
+================================ Test Info: {0} ================================
+Description: {1}
 Environment:
-	clients: {1}
-	servers per group: {2}
-==================== Test Info ====================
+	clients: {2}
+	servers per group: {3}
+================================ Test Info: {0} ================================
 """
 
     def __init__(self, args):
@@ -318,7 +318,8 @@ Environment:
             for run in cfg["runs"]:
                 with teamcity_messages.block("TEST: {}".format(run["test_name"])):
                     env_cfg = cfg["test_env_cfg"]
-                    test_info = self.test_info.format(run["description"],
+                    test_info = self.test_info.format(run["test_name"],
+                                                      run["description"],
                                                       env_cfg["clients"]["count"],
                                                       env_cfg["servers"]["count_per_group"])
                     self.logger.info(test_info)
