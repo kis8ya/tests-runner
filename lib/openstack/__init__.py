@@ -196,18 +196,22 @@ class Session:
         return uuid_list
 
     def _get_data_from_config(self, config):
-        return {
+        data = {
             "server": {
                 "name": config['name'],
                 "imageRef": self.get_image_id(config['image_name']),
-                "key_name": config['key_name'],
                 "flavorRef": self.get_flavor_id(config['flavor_name']),
                 "max_count": config['max_count'],
                 "min_count": config['min_count'],
                 "networks": self.get_networks_uuid_list(config['networks_label_list']),
                 "user_data": base64.b64encode(utils.USER_DATA)
-                }
             }
+        }
+
+        if config.get('key_name') is not None:
+            data['server']['key_name'] = config['key_name']
+
+        return data
 
     def get_instance_info(self, instance_name):
         # get instance's id

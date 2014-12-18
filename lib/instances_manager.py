@@ -98,14 +98,13 @@ def _get_cfg(name, flavor, count, image):
     return {
         "name": name,
         "image_name": image,
-        "key_name": "",
         "flavor_name": flavor,
         "max_count": count,
         "min_count": count,
         "networks_label_list": [
             "SEARCHOPENSTACKVMNETS"
-            ]
-        }
+        ]
+    }
 
 def get_instances_params(test_configs):
     """Returns information about clients and servers."""
